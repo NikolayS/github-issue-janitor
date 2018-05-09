@@ -2,6 +2,8 @@
 
 set -ex
 
+IMAGE="quay.io/dotmesh/github-janitor:latest"
+
 docker build -f Dockerfile.build -t janitor-builder:latest .
 
 docker rm -f dotmesh-janitor-builder || true
@@ -19,4 +21,5 @@ mkdir -p target
 docker cp dotmesh-janitor-builder:/target/janitor target/
 docker rm -f dotmesh-janitor-builder
 
-docker build -f Dockerfile -t "github-issue-janitor:latest" .
+docker build -f Dockerfile -t "$IMAGE" .
+docker push "$IMAGE"

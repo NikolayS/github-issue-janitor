@@ -16,7 +16,8 @@ const GITHUB_BACKLOG_COLUMN = 1527643
 
 func main() {
 	GITHUB_IGNORED_REPOS := map[string]struct{}{
-		"roadmap": struct{}{},
+		"roadmap":             struct{}{},
+		"moby-counter-issues": struct{}{},
 	}
 
 	GITHUB_IGNORED_LABELS := map[string]struct{}{

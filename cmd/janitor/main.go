@@ -40,7 +40,7 @@ func main() {
 	})
 	if err != nil {
 		fmt.Printf("Error fetching repository list: %+v\n", err)
-		return
+		os.Exit(1)
 	}
 
 skipRepo:
@@ -68,7 +68,7 @@ skipRepo:
 
 			if err != nil {
 				fmt.Printf("Error fetching issue list: %+v\n", err)
-				return
+				os.Exit(1)
 			}
 
 		skipIssue:

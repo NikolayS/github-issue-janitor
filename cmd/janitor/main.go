@@ -11,8 +11,7 @@ import (
 )
 
 const GITHUB_ORG_NAME = "dotmesh-io"
-const GITHUB_PROJECT_ID = 1
-const GITHUB_BACKLOG_COLUMN = 1527643
+const GITHUB_TRIAGE_COLUMN = 1527643
 
 func main() {
 	GITHUB_IGNORED_REPOS := map[string]struct{}{
@@ -85,7 +84,7 @@ skipRepo:
 
 				fmt.Printf("Issue not in project: %s: %s\n", issueTag, *(issue.Title))
 
-				client.Projects.CreateProjectCard(ctx, GITHUB_BACKLOG_COLUMN, &gh.ProjectCardOptions{
+				client.Projects.CreateProjectCard(ctx, GITHUB_TRIAGE_COLUMN, &gh.ProjectCardOptions{
 					ContentType: "Issue",
 					ContentID:   *(issue.ID),
 				})

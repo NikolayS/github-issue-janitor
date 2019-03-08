@@ -23,6 +23,16 @@ func main() {
 		"hypothesis": struct{}{},
 	}
 
+	DESIRED_LABELS := map[string]string{
+		"task":               "84b6eb",
+		"bug":                "ee0701",
+		"debt":               "dbba69",
+		"epic":               "7744aa",
+		"theme":              "7744aa",
+		"support":            "77f252",
+		"ready-for-sign-off": "e89db5",
+	}
+
 	ctx := context.Background()
 
 	ts := oauth2.StaticTokenSource(
@@ -30,8 +40,6 @@ func main() {
 	)
 	tc := oauth2.NewClient(ctx, ts)
 	client := gh.NewClient(tc)
-
-	fmt.Printf("#### FINDING ISSUES IN REPOSITORIES\n")
 
 	repos, _, err := client.Repositories.ListByOrg(ctx, GITHUB_ORG_NAME, &gh.RepositoryListByOrgOptions{
 		Type:        "all",
@@ -44,13 +52,59 @@ func main() {
 
 skipRepo:
 	for _, repo := range repos {
-		fmt.Printf("Got a repo: %+v\n", *(repo.Name))
+		fmt.Printf("### EXAMINING REPO: %s\n", *(repo.Name))
 
 		_, ignoredRepo := GITHUB_IGNORED_REPOS[*(repo.Name)]
 		if ignoredRepo {
 			fmt.Printf("Ignoring that one!\n")
 			continue skipRepo
 		}
+
+		// Process labels
+
+		labels, _, err := client.Issues.ListLabels(ctx, GITHUB_ORG_NAME, *(repo.Name), &gh.ListOptions{})
+		if err != nil {
+			fmt.Printf("Error fetching label list: %+v\n", err)
+			os.Exit(1)
+		}
+		missingLabels := map[string]struct{}{}
+		for n, _ := range DESIRED_LABELS {
+			missingLabels[n] = struct{}{}
+		}
+		for _, l := range labels {
+			desiredColor, known := DESIRED_LABELS[*(l.Name)]
+			if known {
+				if desiredColor != *(l.Color) {
+					fmt.Printf("Label %s has colour %s, should be %s\n", *(l.Name), *(l.Color), desiredColor)
+					l.Color = &desiredColor
+					_, _, err := client.Issues.EditLabel(ctx, GITHUB_ORG_NAME, *(repo.Name), *(l.Name), l)
+					if err != nil {
+						fmt.Printf("Error updating label: %s\n", err.Error())
+						os.Exit(1)
+					}
+				} else {
+					fmt.Printf("Label %s found with correct colour\n", *(l.Name))
+					delete(missingLabels, *(l.Name))
+				}
+			} else {
+				fmt.Printf("Ignoring unknown label %d: %s / %s / %s\n", *(l.ID), *(l.Name), *(l.Color), *(l.NodeID))
+			}
+		}
+
+		for ml, _ := range missingLabels {
+			colour := DESIRED_LABELS[ml]
+			fmt.Printf("Label %s / %s was missing\n", ml, colour)
+			_, _, err := client.Issues.CreateLabel(ctx, GITHUB_ORG_NAME, *(repo.Name), &gh.Label{
+				Name:  &ml,
+				Color: &colour,
+			})
+			if err != nil {
+				fmt.Printf("Error creating label: %s\n", err.Error())
+				os.Exit(1)
+			}
+		}
+
+		// Process issues
 
 		page := 1
 		for {

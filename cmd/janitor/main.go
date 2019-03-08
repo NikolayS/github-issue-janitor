@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/dotmesh-io/github-issue-janitor/pkg/utils"
 	gh "github.com/google/go-github/github"
 	"golang.org/x/oauth2"
 )
@@ -33,6 +34,12 @@ func main() {
 		"ready-for-sign-off": "e89db5",
 	}
 
+	// Labels that make an issue count as an epic
+	EPIC_LABELS := map[string]struct{}{
+		"epic":  struct{}{},
+		"theme": struct{}{},
+	}
+
 	ctx := context.Background()
 
 	ts := oauth2.StaticTokenSource(
@@ -50,19 +57,26 @@ func main() {
 		os.Exit(1)
 	}
 
+	// repo#number strings -> github IDs for issues that aren't in projects
+	issuesNotInProjects := map[string]int64{}
+
+	// repo#number strings for issues that are mentioned in epics
+	issuesMentionedInEpics := map[string]struct{}{}
+
 skipRepo:
 	for _, repo := range repos {
-		fmt.Printf("### EXAMINING REPO: %s\n", *(repo.Name))
+		rn := *(repo.Name)
+		fmt.Printf("### EXAMINING REPO: %s\n", rn)
 
-		_, ignoredRepo := GITHUB_IGNORED_REPOS[*(repo.Name)]
-		if ignoredRepo {
+		_, ignoredRepo := GITHUB_IGNORED_REPOS[rn]
+		if ignoredRepo || *repo.Archived {
 			fmt.Printf("Ignoring that one!\n")
 			continue skipRepo
 		}
 
 		// Process labels
 
-		labels, _, err := client.Issues.ListLabels(ctx, GITHUB_ORG_NAME, *(repo.Name), &gh.ListOptions{})
+		labels, _, err := client.Issues.ListLabels(ctx, GITHUB_ORG_NAME, rn, &gh.ListOptions{})
 		if err != nil {
 			fmt.Printf("Error fetching label list: %+v\n", err)
 			os.Exit(1)
@@ -77,24 +91,22 @@ skipRepo:
 				if desiredColor != *(l.Color) {
 					fmt.Printf("Label %s has colour %s, should be %s\n", *(l.Name), *(l.Color), desiredColor)
 					l.Color = &desiredColor
-					_, _, err := client.Issues.EditLabel(ctx, GITHUB_ORG_NAME, *(repo.Name), *(l.Name), l)
+					_, _, err := client.Issues.EditLabel(ctx, GITHUB_ORG_NAME, rn, *(l.Name), l)
 					if err != nil {
 						fmt.Printf("Error updating label: %s\n", err.Error())
 						os.Exit(1)
 					}
-				} else {
-					fmt.Printf("Label %s found with correct colour\n", *(l.Name))
-					delete(missingLabels, *(l.Name))
 				}
+				delete(missingLabels, *(l.Name))
 			} else {
-				fmt.Printf("Ignoring unknown label %d: %s / %s / %s\n", *(l.ID), *(l.Name), *(l.Color), *(l.NodeID))
+				fmt.Printf("Ignoring unknown label %s / %s\n", *(l.Name), *(l.Color))
 			}
 		}
 
 		for ml, _ := range missingLabels {
 			colour := DESIRED_LABELS[ml]
 			fmt.Printf("Label %s / %s was missing\n", ml, colour)
-			_, _, err := client.Issues.CreateLabel(ctx, GITHUB_ORG_NAME, *(repo.Name), &gh.Label{
+			_, _, err := client.Issues.CreateLabel(ctx, GITHUB_ORG_NAME, rn, &gh.Label{
 				Name:  &ml,
 				Color: &colour,
 			})
@@ -104,15 +116,13 @@ skipRepo:
 			}
 		}
 
-		// Process issues
-
+		// Process epics
 		page := 1
 		for {
-			fmt.Printf("Listing issues for %s/%s\n", *(repo.Owner.Login), *(repo.Name))
 			time.Sleep(3 * time.Second) // 30 requests per minute is the rate limit...
 			issues, resp, err := client.Search.Issues(ctx, fmt.Sprintf(
-				"no:project is:open repo:dotmesh-io/%s",
-				*(repo.Name),
+				"is:open repo:dotmesh-io/%s",
+				rn,
 			), &gh.SearchOptions{
 				ListOptions: gh.ListOptions{
 					PerPage: 100,
@@ -126,7 +136,8 @@ skipRepo:
 
 		skipIssue:
 			for _, issue := range issues.Issues {
-				issueTag := fmt.Sprintf("%s#%d", *(repo.Name), *(issue.Number))
+				issueTag := fmt.Sprintf("%s#%d", rn, *(issue.Number))
+				isEpic := false
 
 				for _, label := range issue.Labels {
 					_, ignoredLabel := GITHUB_IGNORED_LABELS[*(label.Name)]
@@ -134,14 +145,21 @@ skipRepo:
 						fmt.Printf("Ignoring issue %s due to label %s\n", issueTag, *(label.Name))
 						continue skipIssue
 					}
+					_, isEpicLabel := EPIC_LABELS[*(label.Name)]
+					if isEpicLabel {
+						isEpic = true
+					}
 				}
 
-				fmt.Printf("Issue not in project: %s: %s\n", issueTag, *(issue.Title))
+				if isEpic {
+					body := *(issue.Body)
 
-				client.Projects.CreateProjectCard(ctx, GITHUB_TRIAGE_COLUMN, &gh.ProjectCardOptions{
-					ContentType: "Issue",
-					ContentID:   *(issue.ID),
-				})
+					mentionedIssues := utils.ParseBodyForIssueLinks(body, GITHUB_ORG_NAME, rn)
+					fmt.Printf("Issue %s is an epic, mentioning these issues: %v!\n", issueTag, mentionedIssues)
+					for _, mi := range mentionedIssues {
+						issuesMentionedInEpics[mi] = struct{}{}
+					}
+				}
 			}
 
 			if resp.NextPage == 0 {
@@ -150,6 +168,65 @@ skipRepo:
 				page = resp.NextPage
 				fmt.Printf("Next page!\n")
 			}
+		}
+
+		// Process issues not in projects
+
+		page = 1
+		for {
+			time.Sleep(3 * time.Second) // 30 requests per minute is the rate limit...
+			issues, resp, err := client.Search.Issues(ctx, fmt.Sprintf(
+				"no:project is:open repo:dotmesh-io/%s",
+				rn,
+			), &gh.SearchOptions{
+				ListOptions: gh.ListOptions{
+					PerPage: 100,
+					Page:    page},
+			})
+
+			if err != nil {
+				fmt.Printf("Error fetching issue list: %+v\n", err)
+				os.Exit(1)
+			}
+
+		skipIssueNotInProject:
+			for _, issue := range issues.Issues {
+				issueTag := fmt.Sprintf("%s#%d", rn, *(issue.Number))
+
+				for _, label := range issue.Labels {
+					_, ignoredLabel := GITHUB_IGNORED_LABELS[*(label.Name)]
+					if ignoredLabel {
+						fmt.Printf("Ignoring issue %s due to label %s\n", issueTag, *(label.Name))
+						continue skipIssueNotInProject
+					}
+				}
+
+				fmt.Printf("Issue not in project: %s: %s\n", issueTag, *(issue.Title))
+
+				issuesNotInProjects[issueTag] = *(issue.ID)
+			}
+
+			if resp.NextPage == 0 {
+				break
+			} else {
+				page = resp.NextPage
+				fmt.Printf("Next page!\n")
+			}
+		}
+	}
+
+	// Now put the issues not in projects into the triage column, unless they're in an epic
+	for tag, id := range issuesNotInProjects {
+		_, mentionedInEpic := issuesMentionedInEpics[tag]
+		if mentionedInEpic {
+			fmt.Printf("Issue %s is mentioned in an epic, so isn't lost\n", tag)
+		} else {
+			fmt.Printf("Issue %s isn't mentioned in an epic or a project, putting it into triage...\n", tag)
+
+			client.Projects.CreateProjectCard(ctx, GITHUB_TRIAGE_COLUMN, &gh.ProjectCardOptions{
+				ContentType: "Issue",
+				ContentID:   id,
+			})
 		}
 	}
 }

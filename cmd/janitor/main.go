@@ -119,7 +119,6 @@ skipRepo:
 		// Process epics
 		page := 1
 		for {
-			time.Sleep(3 * time.Second) // 30 requests per minute is the rate limit...
 			issues, resp, err := client.Search.Issues(ctx, fmt.Sprintf(
 				"is:open repo:dotmesh-io/%s",
 				rn,
@@ -132,6 +131,12 @@ skipRepo:
 			if err != nil {
 				fmt.Printf("Error fetching issue list: %+v\n", err)
 				os.Exit(1)
+			}
+
+			if resp.Rate.Remaining <= 5 {
+				delay := time.Until(resp.Rate.Reset.Time)
+				fmt.Printf("[rl] %s\n", delay.String())
+				time.Sleep(delay)
 			}
 
 		skipIssue:
@@ -174,7 +179,6 @@ skipRepo:
 
 		page = 1
 		for {
-			time.Sleep(3 * time.Second) // 30 requests per minute is the rate limit...
 			issues, resp, err := client.Search.Issues(ctx, fmt.Sprintf(
 				"no:project is:open repo:dotmesh-io/%s",
 				rn,
@@ -185,8 +189,14 @@ skipRepo:
 			})
 
 			if err != nil {
-				fmt.Printf("Error fetching issue list: %+v\n", err)
+				fmt.Printf("Error fetching issue list: %+v / %+v\n", err, resp)
 				os.Exit(1)
+			}
+
+			if resp.Rate.Remaining <= 5 {
+				delay := time.Until(resp.Rate.Reset.Time)
+				fmt.Printf("[rl] %s\n", delay.String())
+				time.Sleep(delay)
 			}
 
 		skipIssueNotInProject:
@@ -223,10 +233,21 @@ skipRepo:
 		} else {
 			fmt.Printf("Issue %s isn't mentioned in an epic or a project, putting it into triage...\n", tag)
 
-			client.Projects.CreateProjectCard(ctx, GITHUB_TRIAGE_COLUMN, &gh.ProjectCardOptions{
+			_, resp, err := client.Projects.CreateProjectCard(ctx, GITHUB_TRIAGE_COLUMN, &gh.ProjectCardOptions{
 				ContentType: "Issue",
 				ContentID:   id,
 			})
+
+			if err != nil {
+				fmt.Printf("Error putting issue in triage: %+v / %+v\n", err, resp)
+				os.Exit(1)
+			}
+
+			if resp.Rate.Remaining <= 5 {
+				delay := time.Until(resp.Rate.Reset.Time)
+				fmt.Printf("[rl] %s\n", delay.String())
+				time.Sleep(delay)
+			}
 		}
 	}
 }

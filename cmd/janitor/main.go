@@ -250,4 +250,6 @@ skipRepo:
 			}
 		}
 	}
+
+	fmt.Printf("Done.\n")
 }

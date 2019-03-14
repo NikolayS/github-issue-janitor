@@ -64,9 +64,9 @@ func main() {
 	issuesMentionedInEpics := map[string]struct{}{}
 
 skipRepo:
-	for _, repo := range repos {
+	for idx, repo := range repos {
 		rn := *(repo.Name)
-		fmt.Printf("### EXAMINING REPO: %s\n", rn)
+		fmt.Printf("### EXAMINING REPO %d/%d: %s\n", idx+1, len(repos), rn)
 
 		_, ignoredRepo := GITHUB_IGNORED_REPOS[rn]
 		if ignoredRepo || *repo.Archived {

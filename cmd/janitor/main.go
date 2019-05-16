@@ -32,6 +32,7 @@ func main() {
 		"theme":              "7744aa",
 		"support":            "77f252",
 		"ready-for-sign-off": "e89db5",
+		"code-review": "e87d7d",
 	}
 
 	// Labels that make an issue count as an epic

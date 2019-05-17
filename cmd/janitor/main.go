@@ -25,14 +25,16 @@ func main() {
 	}
 
 	DESIRED_LABELS := map[string]string{
-		"task":               "84b6eb",
-		"bug":                "ee0701",
-		"debt":               "dbba69",
-		"epic":               "7744aa",
-		"theme":              "7744aa",
-		"support":            "77f252",
-		"ready-for-sign-off": "e89db5",
-		"code-review": "e87d7d",
+		"task":    "84b6eb",
+		"bug":     "f03838",
+		"debt":    "dbba69",
+		"epic":    "7744aa",
+		"theme":   "7744aa",
+		"support": "77f252",
+		"P0":      "ee0701",
+		"P1":      "ee701b",
+		"P2":      "eed91b",
+		"P3":      "1beecb",
 	}
 
 	// Labels that make an issue count as an epic

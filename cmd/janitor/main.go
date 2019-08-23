@@ -22,6 +22,7 @@ func main() {
 
 	GITHUB_IGNORED_LABELS := map[string]struct{}{
 		"hypothesis": struct{}{},
+		"bot":        struct{}{},
 	}
 
 	DESIRED_LABELS := map[string]string{
@@ -35,6 +36,7 @@ func main() {
 		"P1":      "ee701b",
 		"P2":      "eed91b",
 		"P3":      "1beecb",
+		"bot":     "EEF5DB",
 	}
 
 	// Labels that make an issue count as an epic

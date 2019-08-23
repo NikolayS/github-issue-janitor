@@ -1,0 +1,24 @@
+kind: pipeline
+name: default
+
+steps:
+- name: docker  
+  image: plugins/docker
+  settings:
+    username: 
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+    repo: quay.io/dotmesh/github-issue-janitor
+    registry: quay.io   
+    autotag: true
+- name: slack
+  image: plugins/slack
+  when:
+    status: [ success, failure ]
+  settings:
+    webhook:
+      from_secret: slack_webhook
+    channel: ci
+    username: drone
+    icon_url: https://i.pinimg.com/originals/51/29/a4/5129a48ddad9e8408d2757dd10eb836f.jpg

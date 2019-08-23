@@ -1,6 +1,6 @@
 This repo contains the github issue janitor and, for lack of a better place, a few related utilities for issue management.
 
-# Github Issue Janitor
+# Github Issue Janitor [![Build Status](https://drone.app.cloud.dotscience.net/api/badges/dotmesh-io/github-issue-janitor/status.svg)](https://drone.app.cloud.dotscience.net/dotmesh-io/github-issue-janitor)
 
 This scans our project boards and does various things to keep house in order (read the source if you want to know what, it'll be more up to date than anything we write in here).
 

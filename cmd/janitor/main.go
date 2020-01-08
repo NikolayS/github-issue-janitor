@@ -105,13 +105,26 @@ func main() {
 	tc := oauth2.NewClient(ctx, ts)
 	client := gh.NewClient(tc)
 
-	repos, _, err := client.Repositories.ListByOrg(ctx, GITHUB_ORG_NAME, &gh.RepositoryListByOrgOptions{
+	opt := &gh.RepositoryListByOrgOptions{
 		Type:        "all",
-		ListOptions: gh.ListOptions{PerPage: 100},
-	})
-	if err != nil {
-		fmt.Printf("Error fetching repository list: %+v\n", err)
-		os.Exit(1)
+		ListOptions: gh.ListOptions{PerPage: 500},
+	}
+	
+	var allRepos []*gh.Repository
+
+	for {
+		repos, resp, err := client.Repositories.ListByOrg(ctx, GITHUB_ORG_NAME, opt)
+		if err != nil {
+				fmt.Printf("Error fetching repositories: %+v\n", err)
+				os.Exit(1)
+		}
+
+		allRepos = append(allRepos, repos...)
+		if resp.NextPage == 0 {
+			break
+		}
+		opt.Page = resp.NextPage
+
 	}
 
 	// Maps we build up as we scan through every issue in every repo:
@@ -123,10 +136,11 @@ func main() {
 	issuesMentionedInEpics := map[string]struct{}{}
 
 	// Scan through every repo
+	
 skipRepo:
-	for idx, repo := range repos {
+	for idx, repo := range allRepos {
 		rn := *(repo.Name)
-		fmt.Printf("### EXAMINING REPO %d/%d: %s\n", idx+1, len(repos), rn)
+		fmt.Printf("### EXAMINING REPO %d/%d: %s\n", idx+1, len(allRepos), rn)
 
 		_, ignoredRepo := GITHUB_IGNORED_REPOS[rn]
 		if ignoredRepo || *repo.Archived {

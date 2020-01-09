@@ -13,6 +13,19 @@ steps:
     registry: quay.io   
     tags:
     - ${DRONE_COMMIT}
+- name: docker  
+  image: plugins/docker
+  when:
+    event: tag
+  settings:
+    username: 
+      from_secret: docker_username
+    password:
+      from_secret: docker_password
+    repo: quay.io/dotmesh/github-janitor
+    registry: quay.io   
+    tags:
+    - latest
 - name: slack
   image: plugins/slack
   when:
